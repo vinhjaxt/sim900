@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/vinhjaxt/serial"
 	"github.com/xlab/at/pdu"
@@ -19,13 +20,13 @@ import (
 
 // A SIM900 is the representation of a SIM900 GSM modem with several utility features.
 type SIM900 struct {
+	nextSMSEvent uint64 // move to the first field fix 64bit unaligned pointers atomic
 	PortMu       *sync.RWMutex
 	Port         *serial.SerialPort
 	logger       *log.Logger
 	CSCA         string
 	SMSEventLock *sync.RWMutex
 	mapSMSEvents map[uint64]func(sms *sms.Message)
-	nextSMSEvent uint64
 	OnNewCall    func(phoneNumber string)
 	OnError      func(err error)
 }
@@ -62,16 +63,16 @@ func (s *SIM900) Wait4response(cmd, expected string, timeout time.Duration) ([]s
 }
 
 // wait4response send command and wait for response no lock
-func (s *SIM900) wait4response(cmd, expected string, timeout time.Duration) ([]string, error) {
+func (s *SIM900) wait4response(cmd, expected string, timeout time.Duration, inits ...func() error) ([]string, error) {
 	// Wait for command response
 	regexp := expected + `|(^|\W)ERROR($|\W)`
-	response, err := s.Port.WaitForRegexTimeout(cmd, regexp, timeout)
+	response, err := s.Port.WaitForRegexTimeout(cmd, regexp, timeout, inits...)
 	if err != nil {
 		return nil, err
 	}
 	// Check if response is an error
 	if strings.Contains(response[0], "ERROR") {
-		return response, errors.New("Errors found on command response: " + response[0])
+		return response, errors.New("Error: " + response[0])
 	}
 	// Response received succesfully
 	return response, nil
@@ -90,8 +91,21 @@ func (s *SIM900) SendUSSD(ussd string) (string, error) {
 	return pdu.Decode7Bit(bs)
 }
 
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
+}
+
 // SendSMS return sms id or error
 func (s *SIM900) SendSMS(address, text string) (string, error) {
+	if len(text) > 160 {
+		return "", errors.New("SMS Length > 160")
+	}
+
 	s.PortMu.Lock()
 	defer s.PortMu.Unlock()
 
@@ -108,11 +122,8 @@ func (s *SIM900) SendSMS(address, text string) (string, error) {
 		msg.ServiceCenterAddress = sms.PhoneNumber(s.CSCA)
 	}
 
-	for _, w := range text {
-		if w > 1 {
-			msg.Encoding = sms.Encodings.UCS2
-			break
-		}
+	if !isASCII(msg.Text) {
+		msg.Encoding = sms.Encodings.UCS2
 	}
 
 	n, octets, err := msg.PDU()
@@ -120,12 +131,23 @@ func (s *SIM900) SendSMS(address, text string) (string, error) {
 		return "", err
 	}
 
-	response, err := s.wait4response(fmt.Sprintf("AT+CMGS=%d", n), `(> )|(\+CMS ERROR: \d+($|\W))`, time.Second*3)
+	response, err := s.wait4response("", `(> )|(\+CMS ERROR: \d+($|\W))`, time.Second*3, func() error {
+		return s.Port.Print(fmt.Sprintf("AT+CMGS=%d\r", n))
+	})
 	if err != nil {
 		return "", err
 	}
 
-	response, err = s.wait4response(fmt.Sprintf("%02X", octets)+CMD_CTRL_Z, `(\+CMGS: (\d+)($|\W))|(\+CMS ERROR: \d+($|\W))`, time.Second*60)
+	err = s.Port.Print(fmt.Sprintf("%02X", octets))
+	if err != nil {
+		return "", err
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	response, err = s.wait4response("", `(\+CMGS: (\d+)($|\W))|(\+CMS ERROR: \d+($|\W))`, time.Second*60, func() error {
+		return s.Port.Print(CMD_CTRL_Z)
+	})
 	if err != nil {
 		return "", err
 	}
