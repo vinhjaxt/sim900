@@ -172,7 +172,7 @@ func (s *SIM900) AddSMSListener(fn func(*sms.Message)) uint64 {
 
 // WaitSMSText wait for sms match by phone number
 func (s *SIM900) WaitSMSText(phoneNumber string, timeout time.Duration, inits ...func() error) (string, error) {
-	result := make(chan string)
+	result := make(chan string, 1)
 	defer s.DelSMSListener(s.AddSMSListener(func(msg *sms.Message) {
 		if string(msg.Address) == phoneNumber {
 			result <- msg.Text
@@ -194,7 +194,7 @@ func (s *SIM900) WaitSMSText(phoneNumber string, timeout time.Duration, inits ..
 
 // WaitSMSFunc wait for sms match by function
 func (s *SIM900) WaitSMSFunc(match func(*sms.Message) bool, timeout time.Duration, inits ...func() error) error {
-	result := make(chan struct{})
+	result := make(chan struct{}, 1)
 	s.DelSMSListener(s.AddSMSListener(func(msg *sms.Message) {
 		if match(msg) {
 			result <- struct{}{}
