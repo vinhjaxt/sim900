@@ -302,10 +302,7 @@ func (s *SIM900) Init() error {
 	}
 
 	// set auto select service
-	_, err = s.Wait4response("AT+COPS=0,0", CMD_OK, time.Second*5)
-	if err != nil {
-		return err
-	}
+	// s.Wait4response("AT+COPS=0,0", CMD_OK, time.Second*5)
 
 	// set sms storage
 	_, err = s.Wait4response(`AT+CPMS="ME","ME","ME"`, CMD_OK, time.Second*5)
