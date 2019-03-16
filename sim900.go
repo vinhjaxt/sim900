@@ -13,8 +13,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/vinhjaxt/pdudecoder"
-
 	"github.com/vinhjaxt/serial"
 	"github.com/xlab/at/pdu"
 	"github.com/xlab/at/sms"
@@ -28,7 +26,7 @@ type SIM900 struct {
 	logger       *log.Logger
 	CSCA         string
 	SMSEventLock *sync.RWMutex
-	mapSMSEvents map[uint64]func(sms *pdudecoder.Message)
+	mapSMSEvents map[uint64]func(sms *sms.Message)
 	OnNewCall    func(phoneNumber string)
 	OnError      func(err error)
 }
@@ -40,7 +38,7 @@ func New() *SIM900 {
 		PortMu:       &sync.RWMutex{},
 		SMSEventLock: &sync.RWMutex{},
 		logger:       log.New(os.Stdout, "[sim900] ", log.LstdFlags),
-		mapSMSEvents: map[uint64]func(*pdudecoder.Message){},
+		mapSMSEvents: map[uint64]func(*sms.Message){},
 	}
 }
 
@@ -164,7 +162,7 @@ func (s *SIM900) DelSMSListener(id uint64) {
 }
 
 // AddSMSListener add listener
-func (s *SIM900) AddSMSListener(fn func(*pdudecoder.Message)) uint64 {
+func (s *SIM900) AddSMSListener(fn func(*sms.Message)) uint64 {
 	id := atomic.AddUint64(&s.nextSMSEvent, 1)
 	s.SMSEventLock.Lock()
 	s.mapSMSEvents[id] = fn
@@ -175,7 +173,7 @@ func (s *SIM900) AddSMSListener(fn func(*pdudecoder.Message)) uint64 {
 // WaitSMSText wait for sms match by phone number
 func (s *SIM900) WaitSMSText(phoneNumber string, timeout time.Duration, inits ...func() error) (string, error) {
 	result := make(chan string, 1)
-	defer s.DelSMSListener(s.AddSMSListener(func(msg *pdudecoder.Message) {
+	defer s.DelSMSListener(s.AddSMSListener(func(msg *sms.Message) {
 		if string(msg.Address) == phoneNumber {
 			result <- msg.Text
 		}
@@ -195,9 +193,9 @@ func (s *SIM900) WaitSMSText(phoneNumber string, timeout time.Duration, inits ..
 }
 
 // WaitSMSFunc wait for sms match by function
-func (s *SIM900) WaitSMSFunc(match func(*pdudecoder.Message) bool, timeout time.Duration, inits ...func() error) error {
+func (s *SIM900) WaitSMSFunc(match func(*sms.Message) bool, timeout time.Duration, inits ...func() error) error {
 	result := make(chan struct{}, 1)
-	s.DelSMSListener(s.AddSMSListener(func(msg *pdudecoder.Message) {
+	s.DelSMSListener(s.AddSMSListener(func(msg *sms.Message) {
 		if match(msg) {
 			result <- struct{}{}
 		}
@@ -223,7 +221,7 @@ func (s *SIM900) Init() error {
 		log.Println(err)
 	}
 
-	newMessagePattern := regexp.MustCompile(`\+CMT:[\s,\d]+\r?\n([a-zA-Z\d]+)\r?\n`)
+	newMessagePattern := regexp.MustCompile(`\+CMT:[\s,\d]+\r?\n([a-zA-Z\d]+)(\r?\n|$)`)
 	newCallPattern := regexp.MustCompile(`(^|\W)RING(\r?\n)+\+CLIP: "(\d+)"($|\W)`)
 	endCallPattern := regexp.MustCompile(`\^CEND:\d+`)
 	isRinging := atomic.Value{}
@@ -242,9 +240,9 @@ func (s *SIM900) Init() error {
 					}
 					continue
 				}
-				msg, err := pdudecoder.Decode(bs)
-				// msg := new(sms.Message)
-				// _, err = msg.ReadFrom(bs)
+				// msg, err := pdudecoder.Decode(bs)
+				msg := new(sms.Message)
+				_, err = msg.ReadFrom(bs)
 				/* // github.com\xlab\at\sms line 103
 				// Alphanumeric, (coded according to GSM TS 03.38 7-bit default alphabet)
 				if addrType&0x70 == 0x50 {
@@ -263,6 +261,7 @@ func (s *SIM900) Init() error {
 					}
 					continue
 				}
+				log.Println("Got message from:", msg.Address)
 				go func() {
 					s.SMSEventLock.RLock()
 					for _, fn := range s.mapSMSEvents {
