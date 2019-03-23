@@ -1,6 +1,4 @@
 github.com/vinhjaxt/serial v1.0.1 h1:8303XY0phJcBq0Z9gNhSGwJNQxUxrtVyDteVMlIMEBw=
 github.com/vinhjaxt/serial v1.0.1/go.mod h1:bQqjlnL3sViq3C+JGwJGB8RsyfohE+fiHbzbWfh3vRs=
-github.com/vinhjaxt/sim900 v0.0.0-20190316144016-8f75bc0b96cf h1:4+e6AMTyJRfCyGCwM+p1Zs1BQ+vYn3yFh0iulE1ok/A=
-github.com/vinhjaxt/sim900 v0.0.0-20190316144016-8f75bc0b96cf/go.mod h1:rsyUPh1gopiRDgZ89E/BDlfW5O9m2NSMCZVWg1Vy5sY=
 github.com/xlab/at v0.0.0-20190216203222-7884b63edf83 h1:XlZQFQN6uwMO751DUp/lK9KI00eNIibkflSDEUW22k8=
 github.com/xlab/at v0.0.0-20190216203222-7884b63edf83/go.mod h1:/gl6hh7ycmCUI33RNx0qiCIo2Y/lkbJAQvMnrD5m+hQ=

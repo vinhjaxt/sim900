@@ -1,7 +1,5 @@
 # github.com/vinhjaxt/serial v1.0.1
 github.com/vinhjaxt/serial
-# github.com/vinhjaxt/sim900 v0.0.0-20190316144016-8f75bc0b96cf
-github.com/vinhjaxt/sim900
 # github.com/xlab/at v0.0.0-20190216203222-7884b63edf83
 github.com/xlab/at/pdu
 github.com/xlab/at/sms
