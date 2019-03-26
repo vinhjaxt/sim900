@@ -170,6 +170,33 @@ func (s *SIM900) AddSMSListener(fn func(*sms.Message)) uint64 {
 	return id
 }
 
+// Call to phone number
+func (s *SIM900) Call(phoneNumber string, timeout time.Duration) (string, error) {
+	s.PortMu.Lock()
+	defer s.PortMu.Unlock()
+
+	re := regexp.MustCompile(`\^CEND:[,\d]+[^,\d]`)
+
+	result := make(chan string, 1)
+	defer s.Port.DelOutputListener(s.Port.AddOutputListener(func(bs []byte) {
+		m := re.FindSubmatch(bs)
+		if len(m) > 0 {
+			result <- string(m[0])
+		}
+	}))
+	err := s.Port.Println("ATD" + phoneNumber + ";")
+	if err != nil {
+		return "", err
+	}
+
+	select {
+	case ret := <-result:
+		return ret, nil
+	case <-time.After(timeout):
+		return "", errors.New("Wait call timeout")
+	}
+}
+
 // WaitSMSText wait for sms match by phone number
 func (s *SIM900) WaitSMSText(phoneNumber string, timeout time.Duration, inits ...func() error) (string, error) {
 	result := make(chan string, 1)
@@ -227,7 +254,7 @@ func (s *SIM900) Init() error {
 	isRinging := atomic.Value{}
 	isRinging.Store(false)
 
-	s.Port.OnRxData = func(b []byte) {
+	s.Port.AddOutputListener(func(b []byte) {
 		body := string(b)
 		matches := newMessagePattern.FindAllStringSubmatch(body, -1)
 		for _, match := range matches {
@@ -286,7 +313,7 @@ func (s *SIM900) Init() error {
 				}
 			}
 		}
-	}
+	})
 
 	// Ping
 	_, err := s.Wait4response("AT", CMD_OK, time.Second*5)

@@ -16,28 +16,32 @@ import (
 const rxDataTimeout = 20 * time.Millisecond
 
 type SerialPort struct {
-	fileLog  *log.Logger
-	TxMu     *sync.Mutex
-	RxMu     *sync.Mutex
-	NeedRx   int32
-	Port     io.ReadWriteCloser
-	Opened   int32
-	Verbose  bool
-	OnRxData func([]byte)
-	rxChar   chan byte
-	rxData   chan string
-	rxTimer  <-chan time.Time
+	fileLog      *log.Logger
+	TxMu         *sync.Mutex
+	RxMu         *sync.Mutex
+	NeedRx       int32
+	Port         io.ReadWriteCloser
+	Opened       int32
+	Verbose      bool
+	eventMap     map[uint32]func([]byte)
+	eventNextID  uint32
+	eventMapLock *sync.RWMutex
+	rxChar       chan byte
+	rxData       chan string
+	rxTimer      <-chan time.Time
 }
 
 // New create new instance
 func New() *SerialPort {
 	return &SerialPort{
-		Verbose:  true,
-		OnRxData: nil,
-		Opened:   0,
-		TxMu:     &sync.Mutex{},
-		RxMu:     &sync.Mutex{},
-		fileLog:  nil,
+		Verbose:      true,
+		eventMap:     map[uint32]func([]byte){},
+		eventMapLock: &sync.RWMutex{},
+		eventNextID:  0,
+		Opened:       0,
+		TxMu:         &sync.Mutex{},
+		RxMu:         &sync.Mutex{},
+		fileLog:      nil,
 	}
 }
 
@@ -234,6 +238,22 @@ func (sp *SerialPort) readSerialPort() {
 	}
 }
 
+// DelOutputListener remove func from map
+func (sp *SerialPort) DelOutputListener(id uint32) {
+	sp.eventMapLock.Lock()
+	defer sp.eventMapLock.Unlock()
+	delete(sp.eventMap, id)
+}
+
+// AddOutputListener add func to capture ouput
+func (sp *SerialPort) AddOutputListener(fn func([]byte)) uint32 {
+	sp.eventMapLock.Lock()
+	defer sp.eventMapLock.Unlock()
+	id := atomic.AddUint32(&sp.eventNextID, 1)
+	sp.eventMap[id] = fn
+	return id
+}
+
 func (sp *SerialPort) processSerialPort() {
 	defer func() {
 		recover()
@@ -251,9 +271,13 @@ func (sp *SerialPort) processSerialPort() {
 				if screenBuff == nil {
 					break
 				}
-				if sp.OnRxData != nil {
-					go sp.OnRxData(screenBuff)
+				sp.eventMapLock.RLock()
+				for _, fn := range sp.eventMap {
+					sp.eventMapLock.RUnlock()
+					go fn(screenBuff)
+					sp.eventMapLock.Lock()
 				}
+				sp.eventMapLock.RUnlock()
 				sp.log("Rx << %q", screenBuff)
 				if atomic.LoadInt32(&sp.NeedRx) == 1 {
 					sp.rxData <- string(screenBuff)
