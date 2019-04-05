@@ -1,5 +1,0 @@
-# github.com/vinhjaxt/serial v1.0.1
-github.com/vinhjaxt/serial
-# github.com/xlab/at v0.0.0-20190216203222-7884b63edf83
-github.com/xlab/at/pdu
-github.com/xlab/at/sms
