@@ -108,6 +108,7 @@ func (s *SIM900) SendSMS(address, text string) (string, error) {
 
 	s.PortMu.Lock()
 	defer s.PortMu.Unlock()
+	time.Sleep(1 * time.Second)
 
 	msg := sms.Message{
 		Text:     text,
@@ -175,6 +176,7 @@ func (s *SIM900) Call(phoneNumber string, timeout time.Duration) (string, error)
 	s.PortMu.Lock()
 	defer s.PortMu.Unlock()
 
+	time.Sleep(1 * time.Second)
 	re := regexp.MustCompile(`\^CEND:[,\d]+[^,\d]`)
 
 	result := make(chan string, 1)
