@@ -1,5 +1,38 @@
 package sim900
 
+/*
+Value	RSSI dBm	Condition
+2	-109	Marginal
+3	-107	Marginal
+4	-105	Marginal
+5	-103	Marginal
+6	-101	Marginal
+7	-99	Marginal
+8	-97	Marginal
+9	-95	Marginal
+10	-93	OK
+11	-91	OK
+12	-89	OK
+13	-87	OK
+14	-85	OK
+15	-83	Good
+16	-81	Good
+17	-79	Good
+18	-77	Good
+19	-75	Good
+20	-73	Excellent
+21	-71	Excellent
+22	-69	Excellent
+23	-67	Excellent
+24	-65	Excellent
+25	-63	Excellent
+26	-61	Excellent
+27	-59	Excellent
+28	-57	Excellent
+29	-55	Excellent
+30	-53	Excellent
+*/
+
 import (
 	"encoding/hex"
 	"errors"
@@ -108,15 +141,17 @@ func (s *SIM900) SendSMS(address, text string) (string, error) {
 
 	s.PortMu.Lock()
 	defer s.PortMu.Unlock()
-	time.Sleep(1 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	msg := sms.Message{
-		Text:     text,
-		Type:     sms.MessageTypes.Submit,
-		Encoding: sms.Encodings.Gsm7Bit,
-		Address:  sms.PhoneNumber(address),
-		VPFormat: sms.ValidityPeriodFormats.Relative,
-		VP:       sms.ValidityPeriod(24 * time.Hour * 4),
+		Text:                text,
+		Type:                sms.MessageTypes.Submit,
+		Encoding:            sms.Encodings.Gsm7Bit,
+		Address:             sms.PhoneNumber(address),
+		VPFormat:            sms.ValidityPeriodFormats.Relative,
+		VP:                  sms.ValidityPeriod(63 * 7 * 24 * time.Hour),
+		RejectDuplicates:    true,
+		StatusReportRequest: true,
 	}
 
 	if s.CSCA != "" {
@@ -317,6 +352,34 @@ func (s *SIM900) Init() error {
 		}
 	})
 
+	initCommands := map[string]string{
+		"AT+CGMM":        CMD_OK,
+		"AT":             CMD_OK,
+		"AT+CMEE=1":      CMD_OK,
+		"ATE0":           CMD_OK,
+		"AT^HS=0,0":      CMD_OK,
+		"AT+CFUN?":       CMD_OK,
+		`AT+CLCK="SC",2`: CMD_OK,
+		"AT+CPIN?":       CMD_OK,
+		"AT^SYSINFO":     CMD_OK,
+		"AT+CLCC":        CMD_OK,
+		"AT+CREG=1":      CMD_OK,
+		"AT+CGREG=1":     CMD_OK,
+		"AT+CSSN=1,1":    CMD_OK,
+		"AT+CCWA=1":      CMD_OK,
+		"AT+CIMI":        CMD_OK,
+		"AT+CSQ":         CMD_OK,
+		"AT+COPS=3,0":    CMD_OK,
+		"AT+COPS?":       CMD_OK,
+	}
+	for c, r := range initCommands {
+		_, err := s.Wait4response(c, r, time.Second*5)
+		if err != nil {
+			log.Println(err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	// Ping
 	_, err := s.Wait4response("AT", CMD_OK, time.Second*5)
 	if err != nil {
@@ -332,12 +395,6 @@ func (s *SIM900) Init() error {
 	// set auto select service
 	// s.Wait4response("AT+COPS=0,0", CMD_OK, time.Second*5)
 
-	// set sms storage
-	_, err = s.Wait4response(`AT+CPMS="ME","ME","ME"`, CMD_OK, time.Second*5)
-	if err != nil {
-		return err
-	}
-
 	// set pdu mode
 	_, err = s.Wait4response("AT+CMGF=0", CMD_OK, time.Second*5)
 	if err != nil {
@@ -346,6 +403,14 @@ func (s *SIM900) Init() error {
 
 	// Dont store sms, return pdu data
 	_, err = s.Wait4response("AT+CNMI=1,2,0,0,0", CMD_OK, time.Second*5)
+	// _, err = s.Wait4response("AT+CNMI=1,2,2,2,0", CMD_OK, time.Second*5)
+	// _, err = s.Wait4response("AT+CNMI=3,2,0,0,0", CMD_OK, time.Second*5)
+	if err != nil {
+		return err
+	}
+
+	// set sms storage
+	_, err = s.Wait4response(`AT+CPMS="ME","ME","ME"`, CMD_OK, time.Second*5)
 	if err != nil {
 		return err
 	}
