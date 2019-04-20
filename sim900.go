@@ -352,33 +352,33 @@ func (s *SIM900) Init() error {
 		}
 	})
 
-	initCommands := map[string]string{
-		"AT+CGMM":        CMD_OK,
-		"AT":             CMD_OK,
-		"AT+CMEE=1":      CMD_OK,
-		"ATE0":           CMD_OK,
-		"AT^HS=0,0":      CMD_OK,
-		"AT+CFUN?":       CMD_OK,
-		`AT+CLCK="SC",2`: CMD_OK,
-		"AT+CPIN?":       CMD_OK,
-		"AT^SYSINFO":     CMD_OK,
-		"AT+CLCC":        CMD_OK,
-		"AT+CREG=1":      CMD_OK,
-		"AT+CGREG=1":     CMD_OK,
-		"AT+CSSN=1,1":    CMD_OK,
-		"AT+CCWA=1":      CMD_OK,
-		"AT+CIMI":        CMD_OK,
-		"AT+CSQ":         CMD_OK,
-		"AT+COPS=3,0":    CMD_OK,
-		"AT+COPS?":       CMD_OK,
-	}
-	for c, r := range initCommands {
-		_, err := s.Wait4response(c, r, time.Second*5)
-		if err != nil {
-			log.Println(err)
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	// initCommands := map[string]string{
+	// 	"AT+CGMM":        CMD_OK,
+	// 	"AT":             CMD_OK,
+	// 	"AT+CMEE=1":      CMD_OK,
+	// 	"ATE0":           CMD_OK,
+	// 	"AT^HS=0,0":      CMD_OK,
+	// 	"AT+CFUN?":       CMD_OK,
+	// 	`AT+CLCK="SC",2`: CMD_OK,
+	// 	"AT+CPIN?":       CMD_OK,
+	// 	"AT^SYSINFO":     CMD_OK,
+	// 	"AT+CLCC":        CMD_OK,
+	// 	"AT+CREG=1":      CMD_OK,
+	// 	"AT+CGREG=1":     CMD_OK,
+	// 	"AT+CSSN=1,1":    CMD_OK,
+	// 	"AT+CCWA=1":      CMD_OK,
+	// 	"AT+CIMI":        CMD_OK,
+	// 	"AT+CSQ":         CMD_OK,
+	// 	"AT+COPS=3,0":    CMD_OK,
+	// 	"AT+COPS?":       CMD_OK,
+	// }
+	// for c, r := range initCommands {
+	// 	_, err := s.Wait4response(c, r, time.Second*5)
+	// 	if err != nil {
+	// 		log.Println(err)
+	// 	}
+	// 	time.Sleep(100 * time.Millisecond)
+	// }
 
 	// Ping
 	_, err := s.Wait4response("AT", CMD_OK, time.Second*5)
@@ -437,4 +437,12 @@ func (s *SIM900) getCSCA() (string, error) {
 		return "", err
 	}
 	return response[2], nil
+}
+
+func (s *SIM900) ClearSMS() error {
+	_, err := s.Wait4response("AT+CMGD=1,4", CMD_OK, time.Second*5)
+	if err != nil {
+		return err
+	}
+	return nil
 }
