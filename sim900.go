@@ -151,7 +151,7 @@ func (s *SIM900) SendSMS(address, text string) (string, error) {
 		VPFormat:            sms.ValidityPeriodFormats.Relative,
 		VP:                  sms.ValidityPeriod(63 * 7 * 24 * time.Hour),
 		RejectDuplicates:    true,
-		StatusReportRequest: true,
+		StatusReportRequest: false,
 	}
 
 	if s.CSCA != "" {
