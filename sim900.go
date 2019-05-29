@@ -38,7 +38,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -54,9 +53,8 @@ import (
 // A SIM900 is the representation of a SIM900 GSM modem with several utility features.
 type SIM900 struct {
 	nextSMSEvent uint64 // move to the first field fix 64bit unaligned pointers atomic
-	PortMu       *sync.RWMutex
+	PortMu       *sync.Mutex
 	Port         *serial.SerialPort
-	logger       *log.Logger
 	CSCA         string
 	SMSEventLock *sync.RWMutex
 	mapSMSEvents map[uint64]func(sms *sms.Message)
@@ -68,9 +66,8 @@ type SIM900 struct {
 func New() *SIM900 {
 	return &SIM900{
 		Port:         serial.New(),
-		PortMu:       &sync.RWMutex{},
+		PortMu:       &sync.Mutex{},
 		SMSEventLock: &sync.RWMutex{},
-		logger:       log.New(os.Stdout, "[sim900] ", log.LstdFlags),
 		mapSMSEvents: map[uint64]func(*sms.Message){},
 	}
 }
@@ -90,8 +87,11 @@ func (s *SIM900) Close() error {
 
 // Wait4response send command and wait for response
 func (s *SIM900) Wait4response(cmd, expected string, timeout time.Duration) ([]string, error) {
-	s.PortMu.RLock()
-	defer s.PortMu.RUnlock()
+	s.Port.Log("Waitting for lock: Wait4response")
+	s.PortMu.Lock()
+	defer s.PortMu.Unlock()
+	s.Port.Log("Unlocked: Wait4response")
+	time.Sleep(3 * time.Second)
 	return s.wait4response(cmd, expected, timeout)
 }
 
@@ -139,8 +139,10 @@ func (s *SIM900) SendSMS(address, text string) (string, error) {
 		return "", errors.New("SMS Length > 160")
 	}
 
+	s.Port.Log("Waitting for lock: SendSMS")
 	s.PortMu.Lock()
 	defer s.PortMu.Unlock()
+	s.Port.Log("Unlocked: SendSMS")
 	time.Sleep(5 * time.Second)
 
 	msg := sms.Message{
@@ -208,10 +210,12 @@ func (s *SIM900) AddSMSListener(fn func(*sms.Message)) uint64 {
 
 // Call to phone number
 func (s *SIM900) Call(phoneNumber string, timeout time.Duration) (string, error) {
+	s.Port.Log("Waitting for lock: Call")
 	s.PortMu.Lock()
 	defer s.PortMu.Unlock()
+	s.Port.Log("Unlocked: Call")
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(3 * time.Second)
 	re := regexp.MustCompile(`\^CEND:[,\d]+[^,\d]`)
 
 	result := make(chan string, 1)
